@@ -1187,18 +1187,16 @@ fn decode_gzip(data: Vec<u8>) -> Result<Vec<u8>, TiledError> {
 }
 
 fn decode_zstd(data: Vec<u8>) -> Result<Vec<u8>, TiledError> {
-    use std::io::Cursor;
-    use zstd::stream::read::Decoder;
-
-    let buff = Cursor::new(&data);
-    let mut zd = Decoder::with_buffer(buff).map_err(|e| TiledError::DecompressingError(e))?;
-
-    let mut data = Vec::new();
-    zd.read_to_end(&mut data)
+    let data = &mut &data[..];
+    let mut decoder = ruzstd::StreamingDecoder::new(data).map_err(|e| {
+        TiledError::DecompressingError(std::io::Error::new(std::io::ErrorKind::Other, e))
+    })?;
+    let mut out = vec![];
+    decoder
+        .read_to_end(&mut out)
         .map_err(|e| TiledError::DecompressingError(e))?;
-    Ok(data)
+    Ok(out)
 }
-
 fn decode_csv<R: Read>(parser: &mut EventReader<R>) -> Result<Vec<Vec<LayerTile>>, TiledError> {
     loop {
         match parser.next().map_err(TiledError::XmlDecodingError)? {
